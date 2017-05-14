@@ -1,23 +1,29 @@
 #include <Windows.h>
 #include <locale.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <conio.h>
+
+VOID ReadFile(HANDLE, HANDLE);
 
 DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	setlocale(LC_ALL, "Russian");
 	DWORD ProcCount = 0;
-	DWORD BufferSize = 0;
+	DWORD BufferSize = 4;
+	DWORD CountOfOperations = 0;
 	TCHAR ReadFileName[50];
 	TCHAR WriteFileName[50];
 	TCHAR MapFileName[50] = "MapFile";
 	TCHAR FileEntryName[50] = "FileEntry";
 	TCHAR CommandConsole[128] = "Slave.exe";
+	TCHAR charCountOfOperations[12];
 	HANDLE hReadFile;
 	HANDLE hMapFile;
 	HANDLE hWriteFile;
 	HANDLE hFileEntry;
 	STARTUPINFO StartupInfo;
 	PROCESS_INFORMATION ProcInfo;
+	struct stat FileInfo;
 
 	//Инициализация переменных
 	StartupInfo = { sizeof(StartupInfo) };
@@ -83,6 +89,14 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 		return -1;
 	}
 
+	//Подсчёт количества обращений на чтение
+	stat(ReadFileName, &FileInfo);
+	CountOfOperations = (FileInfo.st_size / BufferSize);
+	if (FileInfo.st_size % BufferSize){
+		CountOfOperations++;
+	}
+	_itoa_s(CountOfOperations, charCountOfOperations, 10);
+
 	//Создание дочерних процессов
 	strcat_s(CommandConsole, " ");
 	strcat_s(CommandConsole, WriteFileName);
@@ -90,6 +104,8 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	strcat_s(CommandConsole, MapFileName);
 	strcat_s(CommandConsole, " ");
 	strcat_s(CommandConsole, FileEntryName);
+	strcat_s(CommandConsole, " ");
+	strcat_s(CommandConsole, charCountOfOperations);
 	strcat_s(CommandConsole, " ");
 
 	for (DWORD i = 0; i < ProcCount; i++){
