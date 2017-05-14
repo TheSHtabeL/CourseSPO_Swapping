@@ -119,5 +119,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	}
 
 	CloseHandle(hReadFile);
+	CloseHandle(hMapFile);
+	CloseHandle(hFileEntry);
 	return 0;
 }
