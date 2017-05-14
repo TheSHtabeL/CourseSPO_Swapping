@@ -4,13 +4,18 @@
 #include <sys/stat.h>
 #include <conio.h>
 
-VOID ReadFile(HANDLE, HANDLE);
+DWORD DataSize = 4;
+DWORD BufferSize = DataSize + 2 * sizeof(INT);
+
+VOID ReadFileInMap(HANDLE, PINT, HANDLE, DWORD, DWORD);
+VOID PrepareFileInMap(PINT, DWORD);
 
 DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	setlocale(LC_ALL, "Russian");
 	DWORD ProcCount = 0;
-	DWORD BufferSize = 4;
+	
 	DWORD CountOfOperations = 0;
+	PINT MapViewData;
 	TCHAR ReadFileName[50];
 	TCHAR WriteFileName[50];
 	TCHAR MapFileName[50] = "MapFile";
@@ -78,7 +83,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	}
 
 	//Открытие файла на своппинге системы
-	hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, BufferSize*ProcCount, MapFileName);
+	hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, ProcCount*BufferSize, MapFileName);
 	if (hMapFile == INVALID_HANDLE_VALUE){
 		wprintf(L"Ошибка при открытии файла. Нажмите любую клавишу для продолжения...");
 		_getch();
@@ -88,14 +93,19 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 		CloseHandle(hFileEntry);
 		return -1;
 	}
+	MapViewData = (PINT)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+	CloseHandle(hMapFile);
 
 	//Подсчёт количества обращений на чтение
 	stat(ReadFileName, &FileInfo);
-	CountOfOperations = (FileInfo.st_size / BufferSize);
-	if (FileInfo.st_size % BufferSize){
+	CountOfOperations = (FileInfo.st_size / DataSize);
+	if (FileInfo.st_size % DataSize){
 		CountOfOperations++;
 	}
 	_itoa_s(CountOfOperations, charCountOfOperations, 10);
+
+	//Подготовка разделяемого ресурса к совместному использованию
+	PrepareFileInMap(MapViewData, ProcCount);
 
 	//Создание дочерних процессов
 	strcat_s(CommandConsole, " ");
@@ -118,8 +128,78 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 		CreateProcess(NULL, (LPSTR)uniqueCommandConsole, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &StartupInfo, &ProcInfo);
 	}
 
+	ReadFileInMap(hReadFile, MapViewData, hFileEntry, CountOfOperations, ProcCount);
+
+	UnmapViewOfFile(MapViewData);
 	CloseHandle(hReadFile);
-	CloseHandle(hMapFile);
 	CloseHandle(hFileEntry);
 	return 0;
+}
+
+VOID PrepareFileInMap(PINT MapViewData, DWORD ProcCount){
+	for (DWORD i = 0; i < ProcCount; i++){
+		MapViewData[i * BufferSize] = (-1);
+	}
+
+	return;
+}
+
+VOID ReadFileInMap(HANDLE hReadFile, PINT MapViewData, HANDLE hFileEntry, DWORD CountOfOperations, DWORD ProcCount){
+	BYTE* BufferRead = (BYTE*)malloc(DataSize);
+	BYTE* BufferWrite = (BYTE*)malloc(BufferSize);
+	HANDLE hEvent;
+	OVERLAPPED overlapped;
+	DWORD PortionSize = 0;
+	DWORD OperationNumber = 0;
+	DWORD BeginOffset = BufferSize - DataSize;
+	DWORD BlockOffset = 0;
+	
+	hEvent = CreateEvent(NULL, FALSE, TRUE, NULL); //Создание события с автоматическим сбросом
+	overlapped.hEvent = hEvent;
+	overlapped.Offset = 0;
+	overlapped.OffsetHigh = 0;
+
+	if (OperationNumber < CountOfOperations){
+		ReadFile(hReadFile, BufferRead, DataSize, NULL, &overlapped);
+		GetOverlappedResult(hReadFile, &overlapped, &PortionSize, TRUE);
+		memcpy(BufferWrite, &BlockOffset, sizeof(DWORD));
+		memcpy(BufferWrite + sizeof(DWORD), &PortionSize, sizeof(DWORD));
+		memcpy(BufferWrite + BeginOffset, BufferRead, DataSize);
+		BlockOffset += DataSize;
+		OperationNumber++;
+		while (OperationNumber <= CountOfOperations){
+			if (OperationNumber < CountOfOperations){
+				ReadFile(hReadFile, BufferRead, DataSize, NULL, &overlapped);
+			}
+			//Ревёрс
+			while (true){
+				BOOL Flag = false;
+				WaitForSingleObject(hFileEntry, INFINITE);
+				for (DWORD i = 0; i < ProcCount; i++){
+					if (MapViewData[i * BufferSize] == (-1)){
+						memcpy(&MapViewData[i * BufferSize], BufferWrite, BufferSize);
+						Flag = true;
+					}
+				}
+				SetEvent(hFileEntry);
+				if (Flag){
+					break;
+				}
+				Sleep(0);
+			}
+			if (OperationNumber < CountOfOperations){
+				GetOverlappedResult(hReadFile, &overlapped, &PortionSize, TRUE);
+				memcpy(BufferWrite, &BlockOffset, sizeof(DWORD));
+				memcpy(BufferWrite + sizeof(DWORD), &PortionSize, sizeof(DWORD));
+				memcpy(BufferWrite, BufferRead, DataSize);
+				BlockOffset += DataSize;
+			}
+			OperationNumber++;
+		}
+	}
+
+	CloseHandle(hEvent);
+	free(BufferRead);
+	free(BufferWrite);
+	return;
 }
