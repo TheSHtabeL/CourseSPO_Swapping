@@ -1,8 +1,13 @@
 #include <Windows.h>
 #include <locale.h>
+#include <conio.h>
+#include <stdio.h>
 
-int wmain(int argc, wchar_t* argv[], wchar_t* envp[]){
+DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	setlocale(LC_ALL, "Russian");
 
+	wprintf(L"Kokoko");
+	_getch();
+	
 	return 0;
 }
