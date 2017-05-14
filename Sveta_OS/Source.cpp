@@ -21,7 +21,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	TCHAR MapFileName[50] = "MapFile";
 	TCHAR FileEntryName[50] = "FileEntry";
 	TCHAR CommandConsole[128] = "Slave.exe";
-	TCHAR charCountOfOperations[12];
+	TCHAR TempForInt[12];
 	HANDLE hReadFile;
 	HANDLE hMapFile;
 	HANDLE hWriteFile;
@@ -102,7 +102,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	if (FileInfo.st_size % DataSize){
 		CountOfOperations++;
 	}
-	_itoa_s(CountOfOperations, charCountOfOperations, 10);
+	_itoa_s(CountOfOperations, TempForInt, 10);
 
 	//Подготовка разделяемого ресурса к совместному использованию
 	PrepareFileInMap(MapViewData, ProcCount);
@@ -115,7 +115,14 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	strcat_s(CommandConsole, " ");
 	strcat_s(CommandConsole, FileEntryName);
 	strcat_s(CommandConsole, " ");
-	strcat_s(CommandConsole, charCountOfOperations);
+	_itoa_s(CountOfOperations, TempForInt, 10);
+	strcat_s(CommandConsole, TempForInt);
+	strcat_s(CommandConsole, " ");
+	_itoa_s(DataSize, TempForInt, 10);
+	strcat_s(CommandConsole, TempForInt);
+	strcat_s(CommandConsole, " ");
+	_itoa_s(BufferSize, TempForInt, 10);
+	strcat_s(CommandConsole, TempForInt);
 	strcat_s(CommandConsole, " ");
 
 	for (DWORD i = 0; i < ProcCount; i++){
