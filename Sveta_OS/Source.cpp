@@ -16,19 +16,19 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	
 	DWORD CountOfOperations = 0;
 	PINT MapViewData;
-	TCHAR ReadFileName[50];
-	TCHAR WriteFileName[50];
-	TCHAR MapFileName[50] = "MapFile";
-	TCHAR FileEntryName[50] = "FileEntry";
-	TCHAR CommandConsole[128] = "Slave.exe";
-	TCHAR TempForInt[12];
+	WCHAR ReadFileName[50];
+	WCHAR WriteFileName[50];
+	WCHAR MapFileName[50] = L"MapFile";
+	WCHAR FileEntryName[50] = L"FileEntry";
+	WCHAR CommandConsole[200] = L"Slave.exe";
+	WCHAR TempForInt[12];
 	HANDLE hReadFile;
 	HANDLE hMapFile;
 	HANDLE hWriteFile;
 	HANDLE hFileEntry;
-	STARTUPINFO StartupInfo;
+	STARTUPINFOW StartupInfo;
 	PROCESS_INFORMATION ProcInfo;
-	struct stat FileInfo;
+	struct _stat64i32 FileInfo;
 
 	//Инициализация переменных
 	StartupInfo = { sizeof(StartupInfo) };
@@ -40,20 +40,20 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 		return -1;
 	}
 	wprintf(L"Введите имя файла для чтения: ");
-	if (!scanf("%s", ReadFileName)){
+	if (!wscanf(L"%s", ReadFileName)){
 		wprintf(L"Произошла ошибка. Нажмите любую клавишу для выхода из программы...");
 		_getch();
 		return -1;
 	}
 	wprintf(L"Введите имя файла для записи: ");
-	if (!scanf("%s", WriteFileName)){
+	if (!wscanf(L"%s", WriteFileName)){
 		wprintf(L"Произошла ошибка. Нажмите любую клавишу для выхода из программы...");
 		_getch();
 		return -1;
 	}
 
 	//Открытие файла на чтение
-	hReadFile = CreateFile(ReadFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	hReadFile = CreateFileW(ReadFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 	if (hReadFile == INVALID_HANDLE_VALUE) {
 		wprintf(L"Ошибка при открытии файла. Нажмите любую клавишу для продолжения...");
 		_getch();
@@ -61,7 +61,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 		return -1;
 	}
 	//Открытие файла на запись
-	hWriteFile = CreateFile(WriteFileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_FLAG_OVERLAPPED, NULL);
+	hWriteFile = CreateFileW(WriteFileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_FLAG_OVERLAPPED, NULL);
 	if (hWriteFile == INVALID_HANDLE_VALUE) {
 		wprintf(L"Ошибка при открытии файла. Нажмите любую клавишу для продолжения...");
 		_getch();
@@ -72,7 +72,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	CloseHandle(hWriteFile); //Дескриптор закрывается, так как не используется в пределах процесса
 
 	//Создание события на доступ к критической секции
-	hFileEntry = CreateEvent(NULL, TRUE, TRUE, FileEntryName);
+	hFileEntry = CreateEventW(NULL, TRUE, TRUE, FileEntryName);
 	if (hFileEntry == INVALID_HANDLE_VALUE){
 		wprintf(L"Ошибка при открытии файла. Нажмите любую клавишу для продолжения...");
 		_getch();
@@ -83,7 +83,7 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 	}
 
 	//Открытие файла на своппинге системы
-	hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, ProcCount*BufferSize, MapFileName);
+	hMapFile = CreateFileMappingW(INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, ProcCount*BufferSize, MapFileName);
 	if (hMapFile == INVALID_HANDLE_VALUE){
 		wprintf(L"Ошибка при открытии файла. Нажмите любую клавишу для продолжения...");
 		_getch();
@@ -94,52 +94,54 @@ DWORD wmain(DWORD argc, WCHAR* argv[], WCHAR* envp[]){
 		return -1;
 	}
 	MapViewData = (PINT)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-	CloseHandle(hMapFile);
+	//CloseHandle(hMapFile);
 
 	//Подсчёт количества обращений на чтение
-	stat(ReadFileName, &FileInfo);
+	_wstat(ReadFileName, &FileInfo);
 	CountOfOperations = (FileInfo.st_size / DataSize);
 	if (FileInfo.st_size % DataSize){
 		CountOfOperations++;
 	}
-	_itoa_s(CountOfOperations, TempForInt, 10);
+	_itow_s(CountOfOperations, TempForInt, 10);
 
 	//Подготовка разделяемого ресурса к совместному использованию
 	PrepareFileInMap(MapViewData, ProcCount);
 
 	//Создание дочерних процессов
-	strcat_s(CommandConsole, " ");
-	strcat_s(CommandConsole, WriteFileName);
-	strcat_s(CommandConsole, " ");
-	strcat_s(CommandConsole, MapFileName);
-	strcat_s(CommandConsole, " ");
-	strcat_s(CommandConsole, FileEntryName);
-	strcat_s(CommandConsole, " ");
-	_itoa_s(CountOfOperations, TempForInt, 10);
-	strcat_s(CommandConsole, TempForInt);
-	strcat_s(CommandConsole, " ");
-	_itoa_s(DataSize, TempForInt, 10);
-	strcat_s(CommandConsole, TempForInt);
-	strcat_s(CommandConsole, " ");
-	_itoa_s(BufferSize, TempForInt, 10);
-	strcat_s(CommandConsole, TempForInt);
-	strcat_s(CommandConsole, " ");
+	wcscat_s(CommandConsole, L" ");
+	wcscat_s(CommandConsole, WriteFileName);
+	wcscat_s(CommandConsole, L" ");
+	wcscat_s(CommandConsole, MapFileName);
+	wcscat_s(CommandConsole, L" ");
+	wcscat_s(CommandConsole, FileEntryName);
+	wcscat_s(CommandConsole, L" ");
+	wcscat_s(CommandConsole, ReadFileName);
+	wcscat_s(CommandConsole, L" ");
+	_itow_s(CountOfOperations, TempForInt, 10);
+	wcscat_s(CommandConsole, TempForInt);
+	wcscat_s(CommandConsole, L" ");
+	_itow_s(DataSize, TempForInt, 10);
+	wcscat_s(CommandConsole, TempForInt);
+	wcscat_s(CommandConsole, L" ");
+	_itow_s(BufferSize, TempForInt, 10);
+	wcscat_s(CommandConsole, TempForInt);
+	wcscat_s(CommandConsole, L" ");
+	_itow_s(ProcCount, TempForInt, 10);
+	wcscat_s(CommandConsole, TempForInt);
+	wcscat_s(CommandConsole, L" ");
 
 	for (DWORD i = 0; i < ProcCount; i++){
-		TCHAR uniqueCommandConsole[100];
-		TCHAR Number[12];
-
-		strcpy_s(uniqueCommandConsole, CommandConsole);
-		_itoa_s(i, Number, 10);
-		strcat_s(uniqueCommandConsole, Number);
-		CreateProcess(NULL, (LPSTR)uniqueCommandConsole, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &StartupInfo, &ProcInfo);
+		CreateProcessW(NULL, CommandConsole, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &StartupInfo, &ProcInfo);
 	}
 
 	ReadFileInMap(hReadFile, MapViewData, hFileEntry, CountOfOperations, ProcCount);
 
+	wprintf(L"\n\n\nЗАВЕРШЕНО");
+	_getch();
 	UnmapViewOfFile(MapViewData);
 	CloseHandle(hReadFile);
 	CloseHandle(hFileEntry);
+	CloseHandle(hMapFile);
 	return 0;
 }
 
@@ -173,6 +175,7 @@ VOID ReadFileInMap(HANDLE hReadFile, PINT MapViewData, HANDLE hFileEntry, DWORD 
 		memcpy(BufferWrite + sizeof(DWORD), &PortionSize, sizeof(DWORD));
 		memcpy(BufferWrite + BeginOffset, BufferRead, DataSize);
 		BlockOffset += DataSize;
+		overlapped.Offset += DataSize;
 		OperationNumber++;
 		while (OperationNumber <= CountOfOperations){
 			if (OperationNumber < CountOfOperations){
@@ -184,6 +187,7 @@ VOID ReadFileInMap(HANDLE hReadFile, PINT MapViewData, HANDLE hFileEntry, DWORD 
 				WaitForSingleObject(hFileEntry, INFINITE);
 				for (DWORD i = 0; i < ProcCount; i++){
 					if (MapViewData[i * BufferSize] == (-1)){
+						wprintf(L"Koko");
 						memcpy(&MapViewData[i * BufferSize], BufferWrite, BufferSize);
 						Flag = true;
 					}
@@ -198,7 +202,8 @@ VOID ReadFileInMap(HANDLE hReadFile, PINT MapViewData, HANDLE hFileEntry, DWORD 
 				GetOverlappedResult(hReadFile, &overlapped, &PortionSize, TRUE);
 				memcpy(BufferWrite, &BlockOffset, sizeof(DWORD));
 				memcpy(BufferWrite + sizeof(DWORD), &PortionSize, sizeof(DWORD));
-				memcpy(BufferWrite, BufferRead, DataSize);
+				memcpy(BufferWrite + BeginOffset, BufferRead, DataSize);
+				overlapped.Offset += DataSize;
 				BlockOffset += DataSize;
 			}
 			OperationNumber++;
